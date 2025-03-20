@@ -5,7 +5,7 @@ import math
 # Define the model
 class InputEmbeddings(nn.Model):
 
-    def __init__(self, d_model: int, vocab_size: int)--> None:
+    def __init__(self, d_model: int, vocab_size: int) -> None:
         super().__init__()
         self.d_model = d_model # embedding dimension
         self.vocab_size = vocab_size  # vocabulary size
@@ -16,7 +16,7 @@ class InputEmbeddings(nn.Model):
 
 class PositionalEncoding(nn.Module):
 
-    def __init__(self, d_model: int, dropout: float, seq_len: int) --> None:
+    def __init__(self, d_model: int, dropout: float, seq_len: int) -> None:
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
         sef.seq_len = seq_len
@@ -57,7 +57,7 @@ class LayerNorm(nn.Module):
 # define the feedforward network
 class FeedForward(nn.Module):
 
-    def __init__(self, d_model: int, d_ff: int, dropout: float) --> None:
+    def __init__(self, d_model: int, d_ff: int, dropout: float) -> None:
         super().__init__()
         self.linear_1 = nn.Linear(d_model, d_ff) # w1 and b1
         self.dropout = nn.Dropout(dropout)
