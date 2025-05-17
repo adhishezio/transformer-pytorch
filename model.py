@@ -157,7 +157,7 @@ class DecoderBlock(nn.Module):
         self.self_attention_block = self_attention_block
         self.cross_attention_block = cross_attention_block
         self.feed_forward_block = feed_forward_block
-        self.residual_connections = nn.Module([ResidualConnection(dropout) 
+        self.residual_connections = nn.ModuleList([ResidualConnection(dropout) 
                                                    for _ in range(3)]) # for 3 residual connections
 
     def forward(self, x, encoder_output, src_mask=None, tgt_mask=None):
@@ -256,6 +256,6 @@ def build_transformer(src_vocab_size: int, tgt_vocab_size: int, src_seq_len: int
     # initialize the parameters
     for p in transformer.parameters():
         if p.dim() > 1:
-            nn.init.xavier_uniform_(p)
-    
+            nn.init.xavier_uniform_(p) # initialize the weights using xavier uniform distribution
+ 
     return transformer
