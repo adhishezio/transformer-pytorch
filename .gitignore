@@ -1,0 +1,25 @@
+# ignore virtual environment
+.transenv/
+
+# model weights
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.joblib
+*.sav
+
+# ignore TensorBoard or logging runs
+runs/
+
+# tgnore all JSON files
+*.json
+
+#ignore system/editor files
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.idea/
+.vscode/

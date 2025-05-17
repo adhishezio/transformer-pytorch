@@ -26,20 +26,20 @@ class BilingualDataset(Dataset):
         src_text = src_target_pair['translation'][self.src_lang]
         tgt_text = src_target_pair['translation'][self.tgt_lang]
 
-        # Transform the text into tokens
+        # transform the text into tokens
         enc_input_tokens = self.tokenizer_src.encode(src_text).ids
         dec_input_tokens = self.tokenizer_tgt.encode(tgt_text).ids
 
-        # Add sos, eos and padding to each sentence
-        enc_num_padding_tokens = self.seq_len - len(enc_input_tokens) - 2  # We will add <s> and </s>
-        # We will only add <s>, and </s> only on the label
+        # add sos, eos and padding to each sentence
+        enc_num_padding_tokens = self.seq_len - len(enc_input_tokens) - 2  # we will add SOS and EOS
+        # uses only add SOS, and EOS only on the label
         dec_num_padding_tokens = self.seq_len - len(dec_input_tokens) - 1
 
-        # Make sure the number of padding tokens is not negative. If it is, the sentence is too long
+        # adding padding should never be negative
         if enc_num_padding_tokens < 0 or dec_num_padding_tokens < 0:
-            raise ValueError("Sentence is too long")
+            raise ValueError("sentence is too long")
 
-        # Add <s> and </s> token
+        # add SOS and EOS token
         encoder_input = torch.cat(
             [
                 self.sos_token,
@@ -50,7 +50,7 @@ class BilingualDataset(Dataset):
             dim=0,
         )
 
-        # Add only <s> token
+        # add only SOS token
         decoder_input = torch.cat(
             [
                 self.sos_token,
@@ -60,7 +60,7 @@ class BilingualDataset(Dataset):
             dim=0,
         )
 
-        # Add only </s> token
+        # add only EOS token
         label = torch.cat(
             [
                 torch.tensor(dec_input_tokens, dtype=torch.int64),
@@ -70,7 +70,7 @@ class BilingualDataset(Dataset):
             dim=0,
         )
 
-        # Double check the size of the tensors to make sure they are all seq_len long
+        # checks if the size of the tensors to make sure they are all seq_len long
         assert encoder_input.size(0) == self.seq_len
         assert decoder_input.size(0) == self.seq_len
         assert label.size(0) == self.seq_len
