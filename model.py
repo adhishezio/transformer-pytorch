@@ -3,7 +3,7 @@ import torch.nn as nn
 import math
 
 # Define the model
-class InputEmbeddings(nn.Model):
+class InputEmbeddings(nn.Module):
 
     def __init__(self, d_model: int, vocab_size: int) -> None:
         super().__init__()
@@ -19,8 +19,8 @@ class PositionalEncoding(nn.Module):
     def __init__(self, d_model: int, dropout: float, seq_len: int) -> None:
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
-        sef.seq_len = seq_len
-        sef.d_model = d_model
+        self.seq_len = seq_len
+        self.d_model = d_model
 
         # Create a positional encoding
         pe = torch.zeros(seq_len, d_model)
@@ -43,7 +43,7 @@ class PositionalEncoding(nn.Module):
 # define the layer normalization
 class LayerNorm(nn.Module):
 
-    def __init__(self, eps: float = 1e-6) --> None:
+    def __init__(self, d_model: int, eps: float = 1e-6) -> None:
         super().__init__()
         self.a_2 = nn.Parameter(torch.ones(d_model)) # alpha multiplicative parameter
         self.b_2 = nn.Parameter(torch.zeros(d_model)) # beta additive parameter
@@ -83,7 +83,7 @@ class MultiHeadAttentionBlock(nn.Module):
         self.w_o = nn.Linear(d_model, d_model) #wo
 
     @staticmethod
-    def attention(query, key, value, mask, dropout: nn.Droupout):
+    def attention(query, key, value, mask, dropout: nn.Dropout):
         d_k = query.size(-1) 
         attention_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k) 
         if mask is not None:
@@ -115,52 +115,51 @@ class MultiHeadAttentionBlock(nn.Module):
     
 class ResidualConnection(nn.Module):
 
-    def __init__(self, dropout: float) -> None:
+    def __init__(self, features: int, dropout: float) -> None:
         super().__init__()
         self.dropout = nn.Dropout(dropout)
-        self.norm = LayerNorm()
+        self.norm = LayerNorm(features)
 
     def forward(self, x, sublayer):
         return x + self.dropout(sublayer(self.norm(x)))
     
 class EncoderBlock(nn.Module):
-    def __init__(self, attention_block: MultiHeadAttentionBlock, feed_forward_block: FeedForwardBlock, dropout: float) -> None:
+    def __init__(self, features: int, self_attention_block: MultiHeadAttentionBlock, feed_forward_block: FeedForwardBlock, dropout: float) -> None:
         super().__init__()
-        self.attention_block = attention_block
+        self.self_attention_block = self_attention_block
         self.feed_forward_block = feed_forward_block
-        self.residual_connections = nn.ModuleList([ResidualConnection(dropout) 
-                                                   for _ in range(2)]) # two residual connections
+       
+        self.residual_connections = nn.ModuleList([ResidualConnection(features, dropout) 
+                                               for _ in range(2)]) # two residual connections
 
-    def forward(self, x, src_mask=None):
-        x = self.residual_connections[0](x, lambda x: self.attention_block(x, x, x, src_mask))
+    def forward(self, x, src_mask):
+        x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, x, x, src_mask))
         x = self.residual_connections[1](x, self.feed_forward_block)
         return x
     
 class Encoder(nn.Module):
 
-    def __init__(self, layers: nn.ModuleList) -> None:
+    def __init__(self, features: int, layers: nn.ModuleList) -> None:
         super().__init__()
         self.layers = layers
-        self.norm = LayerNorm() 
+        self.norm = LayerNorm(features)
 
-    def forward(self, x, mask=None):
+    def forward(self, x, mask):
         for layer in self.layers:
             x = layer(x, mask)
         return self.norm(x)
-    
 
 class DecoderBlock(nn.Module):
     
-    def __init__(self, self_attention_block: MultiHeadAttentionBlock, cross_attention_block: MultiHeadAttentionBlock, 
+    def __init__(self, features: int, self_attention_block: MultiHeadAttentionBlock, cross_attention_block: MultiHeadAttentionBlock, 
                  feed_forward_block: FeedForwardBlock, dropout: float) -> None:
         super().__init__()
         self.self_attention_block = self_attention_block
         self.cross_attention_block = cross_attention_block
         self.feed_forward_block = feed_forward_block
-        self.residual_connections = nn.ModuleList([ResidualConnection(dropout) 
-                                                   for _ in range(3)]) # for 3 residual connections
+        self.residual_connections = nn.ModuleList([ResidualConnection(features, dropout) for _ in range(3)])
 
-    def forward(self, x, encoder_output, src_mask=None, tgt_mask=None):
+    def forward(self, x, encoder_output, src_mask, tgt_mask):
         x = self.residual_connections[0](x, lambda x: self.self_attention_block(x, x, x, tgt_mask))
         x = self.residual_connections[1](x, lambda x: self.cross_attention_block(x, encoder_output, encoder_output, src_mask))
         x = self.residual_connections[2](x, self.feed_forward_block)
@@ -168,12 +167,12 @@ class DecoderBlock(nn.Module):
     
 class Decoder(nn.Module):
 
-    def __init__(self, layers: nn.ModuleList) -> None:
+    def __init__(self, features: int, layers: nn.ModuleList) -> None:
         super().__init__()
         self.layers = layers
-        self.norm = LayerNorm()
+        self.norm = LayerNorm(features)
 
-    def forward(self, x, encoder_output, src_mask=None, tgt_mask=None):
+    def forward(self, x, encoder_output, src_mask, tgt_mask):
         for layer in self.layers:
             x = layer(x, encoder_output, src_mask, tgt_mask)
         return self.norm(x)
@@ -194,23 +193,25 @@ class Transformer(nn.Module):
     def __init__(self, encoder: Encoder, decoder: Decoder, src_embed: InputEmbeddings, tgt_embed: InputEmbeddings, 
                  src_pos: PositionalEncoding, tgt_pos: PositionalEncoding, projection_layer: ProjectionLayer) -> None:
         super().__init__()
-        self.encoder = encoder
-        self.decoder = decoder
+        self.encoder_stack = encoder
+        self.decoder_stack = decoder
         self.src_embed = src_embed
         self.tgt_embed = tgt_embed
         self.src_pos = src_pos
         self.tgt_pos = tgt_pos
         self.projection_layer = projection_layer
 
-    def encoder(self, src, src_mask=None):
+    def encode(self, src, src_mask=None):
+        src = src.long()  
         x = self.src_embed(src)
         x = self.src_pos(x)
-        return self.encoder(x, src_mask)
+        return self.encoder_stack(x, src_mask)
     
-    def decoder(self, tgt, encoder_output, src_mask=None, tgt_mask=None):
+    def decode(self, tgt, encoder_output, src_mask=None, tgt_mask=None):
+        tgt = tgt.long()
         tgt = self.tgt_embed(tgt)
         tgt = self.tgt_pos(tgt)
-        return self.decoder(tgt, encoder_output, src_mask, tgt_mask)
+        return self.decoder_stack(tgt, encoder_output, src_mask, tgt_mask)
     
     def project(self, x):
         return self.projection_layer(x)
@@ -223,8 +224,9 @@ def build_transformer(src_vocab_size: int, tgt_vocab_size: int, src_seq_len: int
     tgt_embed = InputEmbeddings(d_model, tgt_vocab_size)
 
     # create the positional encoding layers
-    src_pos = PositionalEncoding(d_model, src_seq_len, dropout)
-    tgt_pos = PositionalEncoding(d_model, tgt_seq_len, dropout)
+    src_pos = PositionalEncoding(d_model, dropout, src_seq_len)
+    tgt_pos = PositionalEncoding(d_model, dropout, tgt_seq_len)
+
     
     # create the encoder blocks
     encoder_blocks = []
@@ -240,7 +242,8 @@ def build_transformer(src_vocab_size: int, tgt_vocab_size: int, src_seq_len: int
         decoder_self_attention_block = MultiHeadAttentionBlock(d_model, h, dropout)
         decoder_cross_attention_block = MultiHeadAttentionBlock(d_model, h, dropout)
         feed_forward_block = FeedForwardBlock(d_model, d_ff, dropout)
-        decoder_block = DecoderBlock(d_model, decoder_self_attention_block, decoder_cross_attention_block, feed_forward_block, dropout)
+        decoder_block = DecoderBlock(d_model, decoder_self_attention_block, decoder_cross_attention_block, 
+                                     feed_forward_block, dropout)
         decoder_blocks.append(decoder_block)
     
     # create the encoder and decoder

@@ -95,7 +95,11 @@ def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_
         decoder_mask = causal_mask(decoder_input.size(1)).type_as(source_mask).to(device)
 
         # calculate output
-        out = model.decode(encoder_output, source_mask, decoder_input, decoder_mask)
+        out = model.decode(                    
+            decoder_input,
+            encoder_output,
+            source_mask,
+            decoder_mask)
 
         # get next token
         prob = model.project(out[:, -1])
@@ -228,7 +232,7 @@ def train_model(config):
 
             # run the tensors through the encoder, decoder and the projection layer
             encoder_output = model.encode(encoder_input, encoder_mask) # (B, seq_len, d_model)
-            decoder_output = model.decode(encoder_output, encoder_mask, decoder_input, decoder_mask) # (B, seq_len, d_model)
+            decoder_output = model.decode(decoder_input, encoder_output,encoder_mask, decoder_mask)# (B, seq_len, d_model)
             proj_output = model.project(decoder_output) # (B, seq_len, vocab_size)
 
             # compare the output with the label
